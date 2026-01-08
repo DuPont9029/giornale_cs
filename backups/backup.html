@@ -1,0 +1,1193 @@
+<!DOCTYPE html>
+<html lang="it">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Vox Populi - Giornale Scolastico</title>
+
+    <!-- Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.0/ethers.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+    <style>
+      :root {
+        --primary: #ff5722; /* Orange */
+        --bg: #0a0a0a;
+        --surface: #1a1a1a;
+        --text: #ffffff;
+        --text-secondary: #a0a0a0;
+      }
+
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue",
+          sans-serif;
+        background-color: var(--bg);
+        color: var(--text);
+        overflow-x: hidden;
+      }
+
+      /* Three.js Background */
+      #canvas-container {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: -1;
+        opacity: 0.6;
+      }
+
+      /* Layout */
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 2rem;
+        position: relative;
+        z-index: 1;
+      }
+
+      header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 4rem;
+        backdrop-filter: blur(10px);
+        padding: 1rem;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      h1,
+      h2,
+      h3 {
+        font-weight: 700;
+      }
+
+      .logo {
+        font-size: 1.5rem;
+        color: var(--primary);
+        text-transform: uppercase;
+        letter-spacing: 2px;
+      }
+
+      /* Buttons */
+      .btn {
+        background: transparent;
+        border: 1px solid var(--primary);
+        color: var(--primary);
+        padding: 0.8rem 1.5rem;
+        cursor: pointer;
+        font-family: inherit;
+        font-weight: 600;
+        text-transform: uppercase;
+        transition: all 0.3s ease;
+        clip-path: polygon(
+          10px 0,
+          100% 0,
+          100% calc(100% - 10px),
+          calc(100% - 10px) 100%,
+          0 100%,
+          0 10px
+        );
+      }
+
+      .btn:hover {
+        background: var(--primary);
+        color: white;
+        box-shadow: 0 0 20px rgba(255, 87, 34, 0.4);
+      }
+
+      .btn-small {
+        padding: 0.5rem 1rem;
+        font-size: 0.8rem;
+      }
+
+      /* Inputs */
+      input,
+      textarea {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        color: white;
+        padding: 1rem;
+        width: 100%;
+        margin-bottom: 1rem;
+        font-family: inherit;
+        border-radius: 4px;
+      }
+
+      input:focus,
+      textarea:focus {
+        outline: none;
+        border-color: var(--primary);
+      }
+
+      /* Sections */
+      .section {
+        background: rgba(26, 26, 26, 0.8);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        padding: 2rem;
+        margin-bottom: 2rem;
+        border-radius: 16px;
+        display: none; /* Hidden by default */
+      }
+
+      .section.active {
+        display: block;
+        animation: fadeIn 0.5s ease-out;
+      }
+
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      /* Newspaper Card */
+      .newspaper-card {
+        border-left: 4px solid var(--primary);
+        padding-left: 2rem;
+        margin-bottom: 2rem;
+      }
+
+      .newspaper-meta {
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+        margin-bottom: 1rem;
+      }
+
+      .newspaper-content {
+        line-height: 1.6;
+        margin-bottom: 2rem;
+        white-space: pre-wrap;
+      }
+
+      /* Governance Grid */
+      .proposals-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 1.5rem;
+        margin-top: 1.5rem;
+      }
+
+      .proposal-card {
+        background: rgba(0, 0, 0, 0.3);
+        padding: 1.5rem;
+        border-radius: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+      }
+
+      .proposal-stats {
+        display: flex;
+        justify-content: space-between;
+        margin: 1rem 0;
+        font-size: 0.9rem;
+      }
+
+      .vote-actions {
+        display: flex;
+        gap: 0.5rem;
+      }
+
+      .status-badge {
+        display: inline-block;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        background: rgba(255, 255, 255, 0.1);
+      }
+
+      .status-active {
+        color: #4caf50;
+        border: 1px solid #4caf50;
+      }
+      .status-ended {
+        color: #f44336;
+        border: 1px solid #f44336;
+      }
+
+      /* Mobile Optimization */
+      @media (max-width: 768px) {
+        .container {
+          padding: 1rem;
+        }
+
+        header {
+          flex-direction: column;
+          gap: 1rem;
+          margin-bottom: 2rem;
+          text-align: center;
+        }
+
+        h1 {
+          font-size: 2.5rem !important;
+        }
+
+        .section {
+          padding: 1.5rem;
+        }
+
+        /* Fix headers in sections */
+        .section-header {
+          flex-direction: column;
+          align-items: flex-start !important;
+          gap: 1rem;
+          margin-bottom: 1.5rem;
+        }
+
+        .section-header h2 {
+          margin-bottom: 0;
+        }
+
+        .section-header .btn {
+          width: 100%;
+          margin-top: 0;
+        }
+
+        .newspaper-card {
+          padding-left: 1rem;
+          border-left-width: 2px;
+        }
+
+        #issueTitle {
+          font-size: 1.8rem !important;
+        }
+
+        .proposals-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .btn {
+          width: 100%;
+          display: block;
+          margin-bottom: 0.5rem;
+        }
+
+        /* Adjust inputs for mobile */
+        input,
+        textarea {
+          width: 100%;
+        }
+
+        /* Gift section mobile fix */
+        #giftSection {
+          flex-direction: column;
+        }
+      }
+
+      /* Notification */
+      #notification {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        padding: 1rem 2rem;
+        background: var(--surface);
+        border-left: 4px solid var(--primary);
+        color: white;
+        border-radius: 4px;
+        transform: translateX(150%);
+        transition: transform 0.3s ease;
+        z-index: 100;
+      }
+
+      #notification.show {
+        transform: translateX(0);
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Three.js Background -->
+    <div id="canvas-container"></div>
+
+    <!-- Notification -->
+    <div id="notification">Action Completed</div>
+
+    <div class="container">
+      <header>
+        <div style="display: flex; align-items: center; gap: 1rem">
+          <div class="logo">Vox Populi</div>
+          <select
+            id="networkSelect"
+            class="btn btn-small"
+            style="
+              background: transparent;
+              border: 1px solid var(--primary);
+              color: var(--primary);
+            "
+          >
+            <option value="0xaa36a7">Sepolia</option>
+            <option value="0x1">Mainnet</option>
+          </select>
+        </div>
+        <button id="connectBtn" class="btn">Connetti Wallet</button>
+      </header>
+
+      <!-- Welcome / Hero Section -->
+      <div
+        id="heroSection"
+        class="section active"
+        style="text-align: center; padding: 4rem 2rem"
+      >
+        <h1 style="font-size: 3.5rem; margin-bottom: 1rem">
+          Il Giornale Decentralizzato
+        </h1>
+        <p
+          style="
+            color: var(--text-secondary);
+            margin-bottom: 2rem;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+          "
+        >
+          Partecipa alla democrazia studentesca. Minta il tuo Soulbound Token,
+          leggi le notizie verificate e vota per la verità.
+        </p>
+        <div style="display: flex; gap: 1rem; justify-content: center">
+          <button id="mintBtn" class="btn">Abbonati (Mint)</button>
+        </div>
+      </div>
+
+      <!-- Dashboard (Visible after login) -->
+      <div id="dashboardSection" style="display: none">
+        <!-- Current Issue Viewer -->
+        <div class="section active">
+          <div
+            class="section-header"
+            style="
+              display: flex;
+              justify-content: space-between;
+              align-items: flex-start;
+            "
+          >
+            <h2>Edizione Corrente</h2>
+            <button id="downloadPdfBtn" class="btn btn-small">
+              Scarica PDF
+            </button>
+          </div>
+          <div class="newspaper-card" style="margin-top: 2rem">
+            <div class="newspaper-meta">
+              Pubblicato il: <span id="issueDate">...</span>
+            </div>
+            <h1 id="issueTitle" style="margin-bottom: 1rem; font-size: 2.5rem">
+              Caricamento...
+            </h1>
+            <div id="issueContent" class="newspaper-content">
+              Connetti il wallet per leggere le ultime notizie.
+            </div>
+          </div>
+        </div>
+
+        <!-- Governance / Voting -->
+        <div class="section active">
+          <div
+            class="section-header"
+            style="
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+            "
+          >
+            <h2>Governance</h2>
+            <button id="refreshProposals" class="btn btn-small">
+              Aggiorna
+            </button>
+          </div>
+          <p style="color: var(--text-secondary)">
+            Vota per le prossime modifiche al giornale.
+          </p>
+
+          <div
+            style="
+              margin-top: 1.5rem;
+              padding: 1.5rem;
+              background: rgba(255, 255, 255, 0.02);
+              border-radius: 8px;
+            "
+          >
+            <h3 style="margin-bottom: 1rem">Nuova Proposta</h3>
+            <input type="text" id="propTitle" placeholder="Nuovo Titolo" />
+            <textarea
+              id="propContent"
+              rows="3"
+              placeholder="Nuovo Contenuto"
+            ></textarea>
+            <button id="proposeBtn" class="btn btn-small">
+              Invia Proposta
+            </button>
+          </div>
+
+          <div id="proposalsList" class="proposals-grid">
+            <!-- Proposals will be injected here -->
+          </div>
+
+          <!-- Admin / Gift Section (Visible only to owner inside dashboard) -->
+          <div
+            id="giftContainer"
+            style="
+              margin-top: 3rem;
+              padding-top: 2rem;
+              border-top: 1px solid rgba(255, 255, 255, 0.1);
+              display: none;
+            "
+          >
+            <h3>Amministrazione</h3>
+            <p style="font-size: 0.8rem; color: #888; margin-bottom: 1rem">
+              Regala un abbonamento (Airdrop)
+            </p>
+            <div
+              id="giftSection"
+              style="display: flex; gap: 0.5rem; max-width: 500px"
+            >
+              <input
+                type="text"
+                id="giftAddress"
+                placeholder="Indirizzo destinatario (0x...)"
+                style="margin-bottom: 0"
+              />
+              <button id="giftBtn" class="btn btn-small">Regala</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // ==========================================
+      // CONFIGURATION
+      // ==========================================
+      const CONTRACT_ADDRESSES = {
+        "0x1": "0x6462A6c527373a2EE3F1415503ae4BAB5acd5618", // Mainnet (Legacy/Placeholder)
+        "0xaa36a7": "0xEd9EfF0E06DB8233EDCBEedb3bCee804A70A4BB7", // Sepolia
+      };
+
+      const ABI = [
+        "function subscribe() public",
+        "function airdrop(address to) public",
+        "function balanceOf(address owner) view returns (uint256)",
+        "function owner() view returns (address)",
+        "function currentIssue() view returns (string headline, string content, uint256 timestamp)",
+        "function proposals(uint256) view returns (string newHeadline, string newContent, uint256 votesPro, uint256 votesContra, uint256 endTime, bool executed, uint256 cycle)",
+        "function vote(uint256 proposalId, bool support) public",
+        "function executeProposal(uint256 proposalId) public",
+        "function proposeUpdate(string _headline, string _content) public",
+        "function reuseProposal(uint256 proposalId, string _headline, string _content) public",
+      ];
+
+      let provider, signer, contract;
+      let userAddress;
+
+      // ==========================================
+      // THREE.JS BACKGROUND
+      // ==========================================
+      function initThree() {
+        const container = document.getElementById("canvas-container");
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(
+          75,
+          window.innerWidth / window.innerHeight,
+          0.1,
+          1000
+        );
+        const renderer = new THREE.WebGLRenderer({
+          alpha: true,
+          antialias: true,
+        });
+
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        container.appendChild(renderer.domElement);
+
+        // Particles
+        const geometry = new THREE.BufferGeometry();
+        const count = 2000;
+        const positions = new Float32Array(count * 3);
+
+        for (let i = 0; i < count * 3; i++) {
+          positions[i] = (Math.random() - 0.5) * 20;
+        }
+
+        geometry.setAttribute(
+          "position",
+          new THREE.BufferAttribute(positions, 3)
+        );
+
+        const material = new THREE.PointsMaterial({
+          color: 0xff5722,
+          size: 0.05,
+          transparent: true,
+          opacity: 0.8,
+        });
+
+        const particles = new THREE.Points(geometry, material);
+        scene.add(particles);
+
+        // Connecting Lines (Mesh)
+        const wireGeo = new THREE.IcosahedronGeometry(10, 1);
+        const wireMat = new THREE.MeshBasicMaterial({
+          color: 0xff5722,
+          wireframe: true,
+          transparent: true,
+          opacity: 0.1,
+        });
+        const wireMesh = new THREE.Mesh(wireGeo, wireMat);
+        scene.add(wireMesh);
+
+        camera.position.z = 5;
+
+        function animate() {
+          requestAnimationFrame(animate);
+
+          particles.rotation.y += 0.001;
+          particles.rotation.x += 0.0005;
+
+          wireMesh.rotation.x -= 0.001;
+          wireMesh.rotation.y -= 0.001;
+
+          renderer.render(scene, camera);
+        }
+        animate();
+
+        window.addEventListener("resize", () => {
+          camera.aspect = window.innerWidth / window.innerHeight;
+          camera.updateProjectionMatrix();
+          renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+      }
+
+      // ==========================================
+      // UI HELPERS
+      // ==========================================
+      function showNotification(msg, type = "info") {
+        const notif = document.getElementById("notification");
+        notif.innerText = msg;
+        notif.style.borderLeftColor = type === "error" ? "#f44336" : "#ff5722";
+        notif.classList.add("show");
+        setTimeout(() => notif.classList.remove("show"), 3000);
+      }
+
+      // ==========================================
+      // BLOCKCHAIN LOGIC
+      // ==========================================
+      const NETWORKS = {
+        "0x1": "Ethereum Mainnet",
+        "0xaa36a7": "Sepolia Testnet",
+      };
+
+      // Initialize Network Selector
+      const networkSelect = document.getElementById("networkSelect");
+
+      // Listen for Network Selector Changes
+      networkSelect.addEventListener("change", async (e) => {
+        const targetChainId = e.target.value;
+        // Don't reload immediately, handle gracefully
+        try {
+          await switchNetwork(targetChainId);
+          // After successful switch, re-check connection
+          if (userAddress) {
+            await connectWallet();
+          }
+        } catch (err) {
+          console.error(err);
+        }
+      });
+
+      async function switchNetwork(chainId) {
+        if (!window.ethereum) return;
+        try {
+          await window.ethereum.request({
+            method: "wallet_switchEthereumChain",
+            params: [{ chainId: chainId }],
+          });
+          // Wait a bit for the network to actually change in provider
+          await new Promise((r) => setTimeout(r, 1000));
+        } catch (switchError) {
+          // This error code indicates that the chain has not been added to MetaMask.
+          if (switchError.code === 4902) {
+            showNotification(
+              "Rete non trovata in MetaMask. Aggiungila manualmente.",
+              "error"
+            );
+          } else {
+            console.error(switchError);
+            showNotification(
+              "Errore cambio rete: " + switchError.message,
+              "error"
+            );
+          }
+        }
+      }
+
+      async function connectWallet() {
+        if (userAddress) {
+          // Disconnect logic
+          userAddress = null;
+          signer = null;
+          contract = null;
+          document.getElementById("connectBtn").innerText = "Connetti Wallet";
+          document.getElementById("connectBtn").style.borderColor =
+            "var(--primary)";
+          document.getElementById("heroSection").style.display = "block";
+          document.getElementById("dashboardSection").style.display = "none";
+          showNotification("Disconnesso");
+          return;
+        }
+
+        if (!window.ethereum) {
+          alert("Per favore installa MetaMask!");
+          return;
+        }
+
+        try {
+          // Force MetaMask to show account picker
+          await window.ethereum.request({
+            method: "wallet_requestPermissions",
+            params: [{ eth_accounts: {} }],
+          });
+
+          provider = new ethers.BrowserProvider(window.ethereum);
+
+          // Check Network Mismatch
+          const network = await provider.getNetwork();
+          const currentChainId = "0x" + network.chainId.toString(16);
+          const selectedChainId = networkSelect.value;
+
+          if (currentChainId !== selectedChainId) {
+            // Try to switch automatically
+            try {
+              await switchNetwork(selectedChainId);
+              // Re-init provider after switch (though listener handles reload usually)
+              provider = new ethers.BrowserProvider(window.ethereum);
+            } catch (e) {
+              showNotification(
+                `Network Mismatch! Selezionato: ${
+                  NETWORKS[selectedChainId]
+                }, Wallet: ${NETWORKS[currentChainId] || currentChainId}`,
+                "error"
+              );
+              throw new Error("Network Mismatch. Please switch network.");
+            }
+          }
+
+          signer = await provider.getSigner();
+          userAddress = await signer.getAddress();
+
+          document.getElementById("connectBtn").innerText =
+            "Disconnetti (" +
+            userAddress.substring(0, 4) +
+            "..." +
+            userAddress.substring(38) +
+            ")";
+          document.getElementById("connectBtn").style.borderColor = "#f44336"; // Red for disconnect
+
+          // Init Contract
+          const contractAddress = CONTRACT_ADDRESSES[currentChainId];
+          if (!contractAddress) {
+            showNotification(
+              "Contratto non disponibile su questa rete.",
+              "error"
+            );
+            throw new Error(
+              "Contract address not found for chainId: " + currentChainId
+            );
+          }
+          contract = new ethers.Contract(contractAddress, ABI, signer);
+
+          // Check Balance and Ownership
+          checkSubscription();
+          checkOwner();
+        } catch (err) {
+          console.error(err);
+          showNotification("Errore connessione: " + err.message, "error");
+        }
+      }
+
+      async function checkOwner() {
+        try {
+          const owner = await contract.owner();
+          if (owner.toLowerCase() === userAddress.toLowerCase()) {
+            document.getElementById("giftContainer").style.display = "block";
+          } else {
+            document.getElementById("giftContainer").style.display = "none";
+          }
+        } catch (err) {
+          console.error("Error checking owner", err);
+        }
+      }
+
+      async function checkSubscription() {
+        try {
+          const balance = await contract.balanceOf(userAddress);
+          if (balance > 0n) {
+            document.getElementById("heroSection").style.display = "none";
+            document.getElementById("dashboardSection").style.display = "block";
+            loadDashboardData();
+          } else {
+            document.getElementById("heroSection").style.display = "block";
+            document.getElementById("dashboardSection").style.display = "none";
+          }
+        } catch (err) {
+          console.error(err);
+          // If contract address is invalid, it might fail here.
+          // For demo purposes, we show dashboard if it fails (assuming dev mode) or handle error
+          if (CONTRACT_ADDRESS === "0xYourContractAddressHere") {
+            showNotification(
+              "Inserisci l'indirizzo del contratto nel codice!",
+              "error"
+            );
+          }
+        }
+      }
+
+      async function mint() {
+        if (!contract) return connectWallet();
+        try {
+          const tx = await contract.subscribe();
+          showNotification("Transazione inviata...");
+          await tx.wait();
+          showNotification("Abbonamento attivato!");
+          checkSubscription();
+        } catch (err) {
+          console.error(err);
+          showNotification("Errore Mint: " + err.message, "error");
+        }
+      }
+
+      async function gift() {
+        if (!contract) return connectWallet();
+        const to = document.getElementById("giftAddress").value;
+        if (!ethers.isAddress(to))
+          return showNotification("Indirizzo non valido", "error");
+
+        try {
+          const tx = await contract.airdrop(to);
+          showNotification("Regalo inviato...");
+          await tx.wait();
+          showNotification("Airdrop completato!");
+        } catch (err) {
+          console.error(err);
+          showNotification(
+            "Errore (Solo Owner può regalare): " + err.message,
+            "error"
+          );
+        }
+      }
+
+      async function loadDashboardData() {
+        loadCurrentIssue();
+        loadProposals();
+      }
+
+      async function loadCurrentIssue() {
+        try {
+          const issue = await contract.currentIssue();
+          // issue is [headline, content, timestamp]
+          document.getElementById("issueTitle").innerText = issue[0];
+          document.getElementById("issueContent").innerText = issue[1];
+
+          const date = new Date(Number(issue[2]) * 1000);
+          document.getElementById("issueDate").innerText =
+            date.toLocaleDateString() + " " + date.toLocaleTimeString();
+        } catch (err) {
+          console.error("Error loading issue", err);
+        }
+      }
+
+      async function loadProposals() {
+        const list = document.getElementById("proposalsList");
+        list.innerHTML = "Caricamento...";
+
+        try {
+          let html = "";
+          // Since we don't have a getProposalsLength, we'll try fetching first 10 or until error
+          // In a real scenario, we'd add a length getter or event indexing
+          let index = 0;
+          let fails = 0;
+
+          while (fails < 1 && index < 20) {
+            // Safety limit
+            try {
+              const p = await contract.proposals(index);
+              // p structure: [newHeadline, newContent, votesPro, votesContra, endTime, executed, cycle]
+
+              const now = Math.floor(Date.now() / 1000);
+              const endTime = Number(p[4]);
+              // Use >= to allow execution exactly at expiration
+              const isExpired = now >= endTime;
+
+              // Calculate time remaining
+              let timeLabel = "";
+              // If NOT expired AND NOT executed
+              if (!isExpired && !p[5]) {
+                const diff = endTime - now;
+                const hours = Math.floor(diff / 3600);
+                const minutes = Math.floor((diff % 3600) / 60);
+                // If less than 1 minute, show seconds or "Adesso"
+                if (hours === 0 && minutes === 0) {
+                  timeLabel = `<span style="color: var(--primary); font-weight: bold;">Scade: ADESSO</span>`;
+                } else {
+                  timeLabel = `<span style="color: var(--primary); font-weight: bold;">Scade tra: ${hours}h ${minutes}m</span>`;
+                }
+              } else {
+                timeLabel = `<span style="font-size:0.8rem; color:#888;">Scaduta: ${new Date(
+                  endTime * 1000
+                ).toLocaleDateString()}</span>`;
+              }
+
+              const statusClass = p[5]
+                ? "status-ended"
+                : isExpired
+                ? "status-ended"
+                : "status-active";
+              const statusText = p[5]
+                ? "ESEGUITA"
+                : isExpired
+                ? "SCADUTA"
+                : "ATTIVA";
+
+              html += `
+                            <div class="proposal-card">
+                                <div style="display:flex; justify-content:space-between; align-items:center;">
+                                    <span class="status-badge ${statusClass}">#${index} ${statusText}</span>
+                                    ${timeLabel}
+                                </div>
+                                <h4 style="margin: 0.5rem 0; color: var(--primary);">${
+                                  p[0]
+                                }</h4>
+                                <p style="font-size: 0.9rem; color: #ccc; height: 60px; overflow: hidden; text-overflow: ellipsis;">${p[1].substring(
+                                  0,
+                                  100
+                                )}...</p>
+                                
+                                <div class="proposal-stats">
+                                    <span style="color: #4caf50;">SÌ: ${
+                                      p[2]
+                                    }</span>
+                                    <span style="color: #f44336;">NO: ${
+                                      p[3]
+                                    }</span>
+                                </div>
+
+                                <div class="vote-actions">
+                                    ${
+                                      !isExpired && !p[5]
+                                        ? `
+                                        <button onclick="vote(${index}, true)" class="btn btn-small" style="flex:1; border-color:#4caf50; color:#4caf50;">SÌ</button>
+                                        <button onclick="vote(${index}, false)" class="btn btn-small" style="flex:1; border-color:#f44336; color:#f44336;">NO</button>
+                                    `
+                                        : ""
+                                    }
+                                    ${
+                                      isExpired && !p[5]
+                                        ? `
+                                        <button onclick="execute(${index})" class="btn btn-small" style="width:100%;">ESEGUI</button>
+                                    `
+                                        : ""
+                                    }
+                                </div>
+                            </div>
+                        `;
+              index++;
+            } catch (e) {
+              fails++; // Stop loop if we hit an error (likely out of bounds)
+            }
+          }
+
+          list.innerHTML = html || "<p>Nessuna proposta trovata.</p>";
+        } catch (err) {
+          console.error(err);
+          list.innerHTML = "Errore caricamento proposte.";
+        }
+      }
+
+      async function createProposal() {
+        const title = document.getElementById("propTitle").value;
+        const content = document.getElementById("propContent").value;
+        if (!title || !content)
+          return showNotification("Compila tutti i campi", "error");
+
+        try {
+          // 1. Search for reusable proposal slot
+          let reusableId = -1;
+          let index = 0;
+          let fails = 0;
+
+          showNotification("Cercando slot libero...", "info");
+
+          // Scan first 50 slots to find a reusable one
+          while (fails < 1 && index < 50) {
+            try {
+              const p = await contract.proposals(index);
+              // p: [newHeadline, newContent, votesPro, votesContra, endTime, executed, cycle]
+              const now = Math.floor(Date.now() / 1000);
+              const endTime = Number(p[4]);
+              const isExecuted = p[5];
+
+              // Check if reusable: Executed OR Expired
+              if (isExecuted || now > endTime) {
+                reusableId = index;
+                break; // Found one!
+              }
+              index++;
+            } catch (e) {
+              fails++; // End of array reached
+            }
+          }
+
+          let tx;
+          if (reusableId !== -1) {
+            console.log("Reusing proposal ID:", reusableId);
+            tx = await contract.reuseProposal(reusableId, title, content);
+            showNotification(`Riciclando slot #${reusableId}...`);
+          } else {
+            console.log("Creating new proposal");
+            tx = await contract.proposeUpdate(title, content);
+            showNotification("Creando nuova proposta...");
+          }
+
+          await tx.wait();
+          showNotification("Proposta creata con successo!");
+          loadProposals();
+
+          // Clear inputs
+          document.getElementById("propTitle").value = "";
+          document.getElementById("propContent").value = "";
+        } catch (err) {
+          console.error(err);
+          showNotification("Errore: " + err.message, "error");
+        }
+      }
+
+      window.vote = async function (id, support) {
+        try {
+          const tx = await contract.vote(id, support);
+          showNotification("Voto inviato...");
+          await tx.wait();
+          showNotification("Voto registrato!");
+          loadProposals();
+        } catch (err) {
+          showNotification("Errore Voto: " + err.message, "error");
+        }
+      };
+
+      window.execute = async function (id) {
+        try {
+          const tx = await contract.executeProposal(id);
+          showNotification("Esecuzione inviata...");
+          await tx.wait();
+          showNotification("Proposta eseguita!");
+          loadDashboardData(); // Refresh issue too
+        } catch (err) {
+          showNotification("Errore Esecuzione: " + err.message, "error");
+        }
+      };
+
+      // ==========================================
+      // PDF LOGIC
+      // ==========================================
+      function generatePDF() {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+
+        const title = document.getElementById("issueTitle").innerText;
+        const content = document.getElementById("issueContent").innerText;
+        const date = document.getElementById("issueDate").innerText;
+        const pageWidth = doc.internal.pageSize.width;
+        const pageHeight = doc.internal.pageSize.height;
+        const margin = 20;
+
+        // 1. Background (Paper Texture imitation)
+        doc.setFillColor(252, 247, 242); // Warm off-white newsprint color
+        doc.rect(0, 0, pageWidth, pageHeight, "F");
+
+        // 2. Border
+        doc.setDrawColor(40);
+        doc.setLineWidth(0.5);
+        doc.rect(10, 10, pageWidth - 20, pageHeight - 20); // Outer
+        doc.setLineWidth(0.2);
+        doc.rect(12, 12, pageWidth - 24, pageHeight - 24); // Inner
+
+        // 3. Header (Masthead)
+        doc.setFont("times", "bold");
+        doc.setFontSize(40);
+        doc.setTextColor(20, 20, 20); // Almost black
+        doc.text("VOX POPULI", pageWidth / 2, 35, { align: "center" });
+
+        // Subtitle / Motto
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "italic");
+        doc.text(
+          "The Voice of the People, The Voice of God",
+          pageWidth / 2,
+          42,
+          { align: "center" }
+        );
+
+        // 4. Meta Bar (Date, Issue, Owner)
+        doc.setFillColor(20, 20, 20);
+        doc.rect(margin, 48, pageWidth - margin * 2, 8, "F");
+
+        doc.setTextColor(255, 255, 255);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9);
+
+        // Left: Date
+        doc.text(date.toUpperCase(), margin + 5, 53);
+
+        // Right: Owner (Truncated)
+        const ownerText = `HOLDER: ${userAddress}`;
+        doc.text(ownerText, pageWidth - margin - 5, 53, { align: "right" });
+
+        // 5. Main Headline
+        doc.setTextColor(255, 87, 34); // Brand Orange
+        doc.setFont("times", "bold");
+        doc.setFontSize(28); // Increased from 24
+
+        // Auto-wrap title
+        const splitTitle = doc.splitTextToSize(
+          title.toUpperCase(),
+          pageWidth - margin * 2
+        );
+        doc.text(splitTitle, pageWidth / 2, 75, { align: "center" });
+
+        let yOffset = 75 + splitTitle.length * 12; // Increased spacing
+
+        // Separator Line
+        doc.setDrawColor(200);
+        doc.setLineWidth(0.5);
+        doc.line(margin, yOffset, pageWidth - margin, yOffset);
+
+        yOffset += 15; // More breathing room
+
+        // 6. Content (Two Balanced Columns)
+        doc.setTextColor(20, 20, 20);
+        doc.setFont("times", "normal");
+        doc.setFontSize(14); // Increased from 11
+        doc.setLineHeightFactor(1.5); // More readable line spacing
+
+        const colWidth = (pageWidth - margin * 2 - 15) / 2; // Slightly more gap between columns
+        const splitContent = doc.splitTextToSize(content, colWidth);
+
+        // Balance columns: Split text evenly between the two columns
+        // This fills the page width better than filling col 1 then col 2
+        const midPoint = Math.ceil(splitContent.length / 2);
+
+        let col1Lines = splitContent.slice(0, midPoint);
+        let col2Lines = splitContent.slice(midPoint);
+
+        // Draw Column 1
+        doc.text(col1Lines, margin, yOffset, {
+          align: "justify",
+          maxWidth: colWidth,
+        });
+
+        // Draw Column 2
+        // We draw it at the same Y offset
+        doc.text(col2Lines, margin + colWidth + 15, yOffset, {
+          align: "justify",
+          maxWidth: colWidth,
+        });
+
+        // Vertical Divider (only if there is content in col 2)
+        if (col2Lines.length > 0) {
+          // Calculate height of the text block to draw the line correctly
+          // approx line height for 14pt is ~7mm with 1.5 factor
+          const blockHeight = col1Lines.length * 7;
+          doc.setDrawColor(220);
+          doc.setLineWidth(0.2);
+          doc.line(
+            pageWidth / 2,
+            yOffset,
+            pageWidth / 2,
+            yOffset + blockHeight
+          );
+        }
+
+        // 7. Footer Seal
+        const footerY = pageHeight - 30;
+        doc.setDrawColor(255, 87, 34);
+        doc.setLineWidth(2);
+        doc.circle(pageWidth - 30, footerY, 12);
+
+        doc.setFontSize(6);
+        doc.setTextColor(255, 87, 34);
+        doc.text("OFFICIAL", pageWidth - 30, footerY - 2, { align: "center" });
+        doc.text("COPY", pageWidth - 30, footerY + 4, { align: "center" });
+
+        // Bottom Text
+        doc.setFontSize(8);
+        doc.setTextColor(150);
+        const currentContractAddr = contract ? contract.target : "N/A";
+        doc.text(
+          `Smart Contract: ${currentContractAddr}`,
+          pageWidth / 2,
+          pageHeight - 15,
+          { align: "center" }
+        );
+
+        doc.save("vox-populi-issue.pdf");
+      }
+
+      // ==========================================
+      // EVENT LISTENERS
+      // ==========================================
+      document
+        .getElementById("connectBtn")
+        .addEventListener("click", connectWallet);
+      document.getElementById("mintBtn").addEventListener("click", mint);
+      document.getElementById("giftBtn").addEventListener("click", gift);
+      document
+        .getElementById("downloadPdfBtn")
+        .addEventListener("click", generatePDF);
+      document
+        .getElementById("proposeBtn")
+        .addEventListener("click", createProposal);
+      document
+        .getElementById("refreshProposals")
+        .addEventListener("click", loadProposals);
+
+      // Init
+      initThree();
+
+      // Listen for account and network changes
+      if (window.ethereum) {
+        window.ethereum.on("accountsChanged", (accounts) => {
+          if (accounts.length === 0) {
+            // Disconnected
+            userAddress = null;
+            window.location.reload();
+          } else {
+            // Account changed, just re-connect logic without full reload if possible,
+            // or reload to be safe. Let's reload to ensure fresh state.
+            window.location.reload();
+          }
+        });
+
+        window.ethereum.on("chainChanged", (chainId) => {
+          // Sync selector with external change
+          if (networkSelect.value !== chainId) {
+            networkSelect.value = chainId;
+          }
+          // Do NOT reload here if we are handling it in the switch logic
+          // But MetaMask recommends reloading on chainChanged.
+          // We will reload ONLY if we didn't initiate the switch manually via UI (hard to track)
+          // or just reload to be safe.
+          window.location.reload();
+        });
+      }
+    </script>
+  </body>
+</html>
